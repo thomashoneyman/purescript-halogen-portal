@@ -10,6 +10,7 @@ import Control.Monad.Rec.Class (forever)
 import Data.Coyoneda (unCoyoneda)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..), maybe, maybe')
+import Data.Symbol (class IsSymbol, SProxy)
 import Effect.Aff (Aff)
 import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff)
@@ -18,6 +19,7 @@ import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
 import Halogen.VDom.Driver as VDom
 import Web.HTML (HTMLElement)
+import Type.Row as Row
 
 type InputFields query input output
   = ( input :: input
@@ -32,6 +34,43 @@ type State query input output
   = { io :: Maybe (H.HalogenIO query output Aff)
     | InputFields query input output
     }
+
+-- | An alternative to `slot` which mounts the child component to a specific
+-- | HTMLElement in the DOM instead of within the parent component. Use this
+-- | in place of `slot` -- it shares the same arguments, with an additional,
+-- | optional `HTMLElement`. Your component will be mounted to the target element
+-- | if provided, or the `<body>` tag otherwise.
+-- |
+-- | ```purs
+-- | -- if `Nothing` is provided as the target HTMLElement, then the `<body>`
+-- | -- tag will be used
+-- | HH.div_ 
+-- |   [ portal _modal unit Modal.component modalInput (Just element) handler ]
+-- |
+-- | -- for comparison, this is how you would mount the component _not_ via 
+-- | -- a portal
+-- | HH.div_
+-- |   [ HH.slot _modal unit Modal.component modalInput handler ]
+-- | ```
+portal ::
+  forall query action input output slots label slot _1.
+  Row.Cons label (H.Slot query output slot) _1 slots =>
+  IsSymbol label =>
+  Ord slot =>
+  SProxy label ->
+  slot ->
+  H.Component HH.HTML query input output Aff ->
+  input ->
+  Maybe HTMLElement ->
+  (output -> Maybe action) ->
+  H.ComponentHTML action slots Aff
+portal label slot childComponent childInput htmlElement handler =
+  handler
+    # HH.slot label slot component
+        { child: childComponent
+        , input: childInput
+        , targetElement: htmlElement
+        }
 
 component ::
   forall query input output m.
