@@ -1,0 +1,59 @@
+version: 2
+
+defaults: &defaults
+  working_directory: ~/halogen-portal
+  docker:
+    - image: circleci/node:10.15-browsers
+  environment:
+    RTS_ARGS: +RTS -N2 -RTS
+
+jobs:
+  test:
+    <<: *defaults
+    steps:
+      - restore_cache:
+          keys:
+            - source-v1-{{ .Branch }}-{{ .Revision }}
+
+      - checkout
+
+      - save_cache:
+          key: source-v1-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - ".git"
+
+      - restore_cache:
+          keys:
+            - v0.1-yarn-cache-{{ .Branch }}-{{ checksum "package.json" }}
+            - v0.1-yarn-cache-{{ .Branch }}
+            - v0.1-yarn-cache-
+
+      - restore_cache:
+          keys:
+            - v0.1-spago-cache-{{ .Branch }}-{{ checksum "spago.dhall" }}
+            - v0.1-spago-cache-{{ .Branch }}
+            - v0.1-spago-cache-
+
+      - run:
+          name: Install PureScript and NPM dependencies
+          command: yarn # relies on postinstall
+
+      - run:
+          name: Verify the project builds successfully
+          command: yarn run build
+
+      - save_cache:
+          key: v0.1-yarn-cache-{{ .Branch }}-{{ checksum "package.json" }}
+          paths:
+            - ~/halogen-portal/node_modules
+
+      - save_cache:
+          key: v0.1-spago-cache-{{ .Branch }}-{{ checksum "spago.dhall" }}
+          paths:
+            - ~/halogen-portal/.spago
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - test

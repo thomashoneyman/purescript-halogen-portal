@@ -2,6 +2,7 @@ module Example.Component.Parent where
 
 import Prelude
 import Data.Const (Const)
+import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Effect.Aff.Class (class MonadAff)
@@ -15,7 +16,7 @@ data Action
   = HandleChild Child.Output
 
 type ChildSlots
-  = ( portal :: H.Slot (Const Void) Child.Output Unit
+  = ( portal :: H.Slot Child.Query Child.Output Unit
     )
 
 component :: forall m. MonadAff m => H.Component HH.HTML (Const Void) Unit Void m
@@ -24,9 +25,10 @@ component =
     { initialState: identity
     , render:
       \_ ->
-        HH.div_
+        HH.div
+          []
           [ HH.text "I'm the parent"
-          , HH.slot (SProxy :: SProxy "portal") unit Portal.component
+          , HH.slot portal unit Portal.component
               { child: Child.component
               , input: unit
               , targetElement: Nothing
@@ -36,6 +38,13 @@ component =
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
     }
   where
+  portal :: SProxy "portal"
+  portal = SProxy
+
   handleAction = case _ of
     HandleChild output -> case output of
-      Child.Clicked -> Console.log "clicked"
+      -- We can receive messages directly from the child, as usual
+      Child.Clicked -> do
+        Console.log "clicked"
+        -- and we can also query the child directly, as usual
+        traverse_ Console.logShow =<< H.query portal unit (H.request Child.GetCount)

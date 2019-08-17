@@ -5,36 +5,32 @@
 module Halogen.Portal where
 
 import Prelude
-
 import Control.Coroutine (consumer)
 import Control.Monad.Rec.Class (forever)
 import Data.Coyoneda (unCoyoneda)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..), maybe, maybe')
-import Effect.Aff (Aff, error, forkAff, killFiber)
-import Effect.Aff.Bus (BusRW)
-import Effect.Aff.Bus as Bus
+import Effect.Aff (Aff)
+import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
-import Halogen.Query.EventSource as ES
 import Halogen.VDom.Driver as VDom
 import Web.HTML (HTMLElement)
 
-type InputRep query input output
+type InputFields query input output
   = ( input :: input
     , child :: H.Component HH.HTML query input output Aff
     , targetElement :: Maybe HTMLElement
     )
 
 type Input query input output
-  = { | InputRep query input output }
+  = { | InputFields query input output }
 
 type State query input output
   = { io :: Maybe (H.HalogenIO query output Aff)
-    , bus :: Maybe (BusRW output)
-    | InputRep query input output
+    | InputFields query input output
     }
 
 component ::
@@ -54,63 +50,55 @@ component =
     , child
     , targetElement
     , io: Nothing
-    , bus: Nothing
     }
 
-  eval
-    :: H.HalogenQ query output (Input query input output)
-    ~> H.HalogenM (State query input output) output () output m
+  eval ::
+    H.HalogenQ query output (Input query input output)
+      ~> H.HalogenM (State query input output) output () output m
   eval = case _ of
     H.Initialize a -> do
       state <- H.get
+      -- Create a blocking mutable variable which will be updated with messages
+      -- as they come in.
+      var <- H.liftAff AVar.empty
       -- The target element can either be the one supplied by the user, or the
       -- document body. Either way, we'll run the sub-tree at the target and
       -- save the resulting interface.
       target <- maybe (H.liftAff awaitBody) pure state.targetElement
       io <- H.liftAff $ VDom.runUI state.child state.input target
-      H.modify_ _ { io = Just io }
-      -- Subscribe to a new event bus, which will run each time a new output
-      -- is emitted by the child component.
-      _ <- H.subscribe <<< busEventSource =<< H.liftEffect Bus.make
-      -- Subscribe to the child component, writing to the bus every time a
-      -- message arises. This indirection through the bus is necessary because
-      -- the component is being run via Aff, not HalogenM
+      -- Subscribe to the child component's messages, writing them to the 
+      -- variable. Multiple writes without a take will queue messages.
       H.liftAff $ io.subscribe
         $ consumer \msg -> do
-            for_ state.bus (Bus.write msg)
+            AVar.put msg var
             pure Nothing
+      _ <-
+        H.fork
+          $ forever do
+              msg <- H.liftAff (AVar.take var)
+              eval (H.Action msg unit)
+      H.modify_ _ { io = Just io }
       pure a
     H.Finalize a -> do
       state <- H.get
       for_ state.io (H.liftAff <<< _.dispose)
       pure a
-    H.Receive input a ->
+    H.Receive input a -> pure a
+    H.Action output a -> do
+      H.raise output
       pure a
-    H.Action msg a -> do
-      H.raise msg
-      pure a
-    H.Query cq fail ->
-      H.gets _.io >>= case _ of
-        Nothing ->
-          pure $ fail unit
-        Just io ->
-          H.liftAff $ unCoyoneda (\k q -> maybe' fail k <$> ioq io q) cq
-
-  -- This is needed for a hint to the typechecker, without it there's an
-  -- idempotence issue with `a` when `HalogenIO` is taken from the `State`
-  -- record
-  ioq :: ∀ a. H.HalogenIO query output Aff -> query a -> Aff (Maybe a)
-  ioq = _.query
+    H.Query query fail ->
+      H.gets _.io
+        >>= case _ of
+            Nothing -> pure $ fail unit
+            Just io -> H.liftAff $ unCoyoneda (\k q -> maybe' fail k <$> ioq io q) query
 
   -- We don't need to render anything; this component is explicitly meant to be
   -- passed through.
   render :: State query input output -> H.ComponentHTML output () m
   render _ = HH.text ""
 
--- Create an event source from a many-to-many bus, which a Halogen component
--- can subscribe to.
-busEventSource :: forall m r act. MonadAff m => Bus.BusR' r act -> ES.EventSource m act
-busEventSource bus =
-  ES.affEventSource \emitter -> do
-    fiber <- forkAff $ forever $ ES.emit emitter =<< Bus.read bus
-    pure (ES.Finalizer (killFiber (error "Event source closed") fiber))
+  -- This is needed for a hint to the typechecker. Without it there's an
+  -- idempotence issue with `a` when `HalogenIO` is taken from `State`.
+  ioq :: forall a. H.HalogenIO query output Aff -> query a -> Aff (Maybe a)
+  ioq = _.query
