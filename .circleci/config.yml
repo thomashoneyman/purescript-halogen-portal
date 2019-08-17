@@ -30,9 +30,9 @@ jobs:
 
       - restore_cache:
           keys:
-            - v0.1-spago-cache-{{ .Branch }}-{{ checksum "spago.dhall" }}
-            - v0.1-spago-cache-{{ .Branch }}
-            - v0.1-spago-cache-
+            - v0.1-packages-cache-{{ .Branch }}-{{ checksum "packages.dhall" }}
+            - v0.1-packages-cache-{{ .Branch }}
+            - v0.1-packages-cache-
 
       - run:
           name: Install PureScript and NPM dependencies
@@ -48,7 +48,7 @@ jobs:
             - ~/halogen-portal/node_modules
 
       - save_cache:
-          key: v0.1-spago-cache-{{ .Branch }}-{{ checksum "spago.dhall" }}
+          key: v0.1-packages-cache-{{ .Branch }}-{{ checksum "packages.dhall" }}
           paths:
             - ~/halogen-portal/.spago
 
