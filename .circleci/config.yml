@@ -54,15 +54,15 @@ jobs:
 
       - run:
           name: Verify the project builds successfully
-          command: spago build --no-install
+          command: npx spago build --no-install
 
       - run:
           name: Verify the examples build successfully
-          command: spago build --no-install -p './example/**/*.purs`'
+          command: npx spago build --no-install -p './example/**/*.purs`'
 
       - run:
           name: Verify the tests pass
-          command: spago test
+          command: npx spago test
 
 workflows:
   version: 2
