@@ -49,7 +49,7 @@ jobs:
             - ~/halogen-portal/.spago
 
       - run:
-          name: Verify code formatting completes (TODO: Commit any diffs)
+          name: Verify code formatting completes
           command: yarn format
 
       - run:
