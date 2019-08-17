@@ -1,0 +1,17 @@
+{
+  "name": "halogen-portal",
+  "version": "0.0.1",
+  "description": "Portals for Halogen",
+  "main": "index.js",
+  "repository": "https://github.com/thomashoneyman/purescript-halogen-portal",
+  "author": "Thomas Honeyman <hello@thomashoneyman.com>",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "spago install",
+    "build": "spago build",
+    "test": "spago test"
+  },
+  "devDependencies": {
+    "bower": "^1.8.8"
+  }
+}
