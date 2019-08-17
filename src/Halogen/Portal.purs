@@ -5,7 +5,6 @@
 module Halogen.Portal where
 
 import Prelude
-
 import Control.Coroutine (consumer)
 import Control.Monad.Rec.Class (forever)
 import Data.Foldable (for_)
@@ -21,44 +20,48 @@ import Halogen.Query.EventSource as ES
 import Halogen.VDom.Driver as VDom
 import Web.HTML (HTMLElement)
 
-type InputRep query input output =
-  ( input :: input
-  , child :: H.Component HH.HTML query input output Aff
-  , targetElement :: Maybe HTMLElement
-  )
+type InputRep query input output
+  = ( input :: input
+    , child :: H.Component HH.HTML query input output Aff
+    , targetElement :: Maybe HTMLElement
+    )
 
-type Input query input output = { | InputRep query input output }
+type Input query input output
+  = { | InputRep query input output }
 
-type State query input output =
-  { io :: Maybe (H.HalogenIO query output Aff)
-  , bus :: Maybe (BusRW output)
-  | InputRep query input output
-  }
+type State query input output
+  = { io :: Maybe (H.HalogenIO query output Aff)
+    , bus :: Maybe (BusRW output)
+    | InputRep query input output
+    }
 
 data Action output
   = Initialize
   | HandleOutput output
   | Finalize
 
-component 
-  :: forall query input output m. 
-  MonadAff m => 
+component ::
+  forall query input output m.
+  MonadAff m =>
   H.Component HH.HTML query (Input query input output) output m
-component = H.mkComponent
-  { initialState
-  , render
-  , eval: H.mkEval $ H.defaultEval
-      { initialize = Just Initialize
-      , handleAction = handleAction
-      , finalize = Just Finalize
-      }
-  }
+component =
+  H.mkComponent
+    { initialState
+    , render
+    , eval:
+      H.mkEval
+        $ H.defaultEval
+            { initialize = Just Initialize
+            , handleAction = handleAction
+            , finalize = Just Finalize
+            }
+    }
   where
   initialState :: Input query input output -> State query input output
-  initialState { input, child, targetElement } = 
-    { input 
+  initialState { input, child, targetElement } =
+    { input
     , child
-    , targetElement 
+    , targetElement
     , io: Nothing
     , bus: Nothing
     }
@@ -67,29 +70,24 @@ component = H.mkComponent
   handleAction = case _ of
     Initialize -> do
       state <- H.get
-
       -- The target element can either be the one supplied by the user, or the 
       -- document body. Either way, we'll run the sub-tree at the target and 
       -- save the resulting interface.
       target <- maybe (H.liftAff awaitBody) pure state.targetElement
       io <- H.liftAff $ VDom.runUI state.child state.input target
       H.modify_ _ { io = Just io }
-      
       -- Subscribe to a new event bus, which will run each time a new output
       -- is emitted by the child component.
-      _ <- H.subscribe <<< map HandleOutput <<< busEventSource =<< H.liftEffect Bus.make 
-
+      _ <- H.subscribe <<< map HandleOutput <<< busEventSource =<< H.liftEffect Bus.make
       -- Subscribe to the child component, writing to the bus every time a 
       -- message arises. This indirection through the bus is necessary because 
       -- the component is being run via Aff, not HalogenM
-      H.liftAff $ io.subscribe $ consumer \msg -> do 
-        for_ state.bus (Bus.write msg)
-        pure Nothing
-
+      H.liftAff $ io.subscribe
+        $ consumer \msg -> do
+            for_ state.bus (Bus.write msg)
+            pure Nothing
     -- This action is called each time the child component emits a message
-    HandleOutput output ->
-      H.raise output
-    
+    HandleOutput output -> H.raise output
     Finalize -> do
       state <- H.get
       for_ state.io (H.liftAff <<< _.dispose)

@@ -9,3 +9,7 @@ generated-docs
 .purs*
 .psa*
 .spago
+
+dist/*
+!dist/*.html
+!dist/*.css
