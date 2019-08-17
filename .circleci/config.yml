@@ -58,7 +58,7 @@ jobs:
 
       - run:
           name: Verify the examples build successfully
-          command: npx spago build --no-install -p './example/**/*.purs`'
+          command: npx spago build --no-install -p './example/**/*.purs'
 
       - run:
           name: Verify the tests pass
