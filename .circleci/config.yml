@@ -38,10 +38,6 @@ jobs:
           name: Install PureScript and NPM dependencies
           command: yarn # relies on postinstall
 
-      - run:
-          name: Verify the project builds successfully
-          command: yarn run build
-
       - save_cache:
           key: v0.1-yarn-cache-{{ .Branch }}-{{ checksum "package.json" }}
           paths:
@@ -51,6 +47,22 @@ jobs:
           key: v0.1-packages-cache-{{ .Branch }}-{{ checksum "packages.dhall" }}
           paths:
             - ~/halogen-portal/.spago
+
+      - run:
+          name: Verify code formatting completes (TODO: Commit any diffs)
+          command: yarn format
+
+      - run:
+          name: Verify the project builds successfully
+          command: spago build --no-install
+
+      - run:
+          name: Verify the examples build successfully
+          command: spago build --no-install -p './example/**/*.purs`'
+
+      - run:
+          name: Verify the tests pass
+          command: spago test
 
 workflows:
   version: 2
