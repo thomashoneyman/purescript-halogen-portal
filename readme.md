@@ -15,11 +15,11 @@ This component allows you to take any child component and mount it at a target n
 HH.slot _modal unit Modal.component modalInput (Just <<< HandleModal)
 
 -- new: this mounts to the `<body>` node instead
-portal _modal unit Modal.component modalInput Nothing (Just <<< HandleModal)
+portalAff _modal unit Modal.component modalInput Nothing (Just <<< HandleModal)
 ```
 
 The component within the portal can be used exactly as if it were just a regular child component -- you can send queries, subscribe to outputs, and use the component types as before.
 
 ### Limitations
 
-Due to the use of `runUI`, only components which can be run directly in `Aff` are possible to send through a portal. You won't be able to use your custom application monad.
+Due to the use of `runUI`, only components which can be easily interpreted into `Aff` can be used. This includes `Aff` and `ReaderT r Aff`, and that's about it. More specifically, you can provide a function `m (n ~> Aff)` that can pull in the monadic context of the parent to interpret the child component into `Aff`, but effects from the child component will not bubble up to the parent component at all.
