@@ -23,24 +23,42 @@ import Halogen.VDom.Driver as VDom
 import Web.HTML (HTMLElement)
 import Type.Row as Row
 
-type InputFields n query input output
+type InputFields query input output n
   = ( input :: input
     , child :: H.Component HH.HTML query input output n
     , targetElement :: Maybe HTMLElement
     )
 
-type Input n query input output
-  = { | InputFields n query input output }
+type Input query input output n
+  = { | InputFields query input output n }
 
-type State n query input output
+type State query input output n
   = { io :: Maybe (H.HalogenIO query output Aff)
-    | InputFields n query input output
+    | InputFields query input output n
     }
 
+-- This wraps natural transformations into a type that is easier to use
+-- with type inference.
+--
+-- A couple default handlers are provided below. If you have a custom monad,
+-- you can make your own, or compose it with an existing handler:
+--
+-- ```purescript
+-- newtype AppM a = AppM (ReaderT Env Aff a)
+--
+-- ntAppM :: AppM (NT AppM Aff)
+-- ntAppM = AppM (ntReaderT <#> ntCompose (NT \(AppM ma) -> ma))
+-- ```
+--
+-- Another option is to use `H.hoist` to lift your component into `ReaderT`.
 newtype NT m n = NT (forall a. m a -> n a)
+ntCompose :: forall h m n. NT h m -> NT m n -> NT h n
+ntCompose (NT hm) (NT mn) = NT (hm >>> mn)
 ntIdentity :: forall m. NT m m
 ntIdentity = NT identity
-ntReaderT :: forall r m. Monad m => ReaderT r m (NT (ReaderT r m) m)
+ntAff :: forall m. MonadAff m => NT Aff m
+ntAff = NT H.liftAff
+ntReaderT :: forall r m n. Monad n => ReaderT r n (NT (ReaderT r m) m)
 ntReaderT = asks \r -> NT \ma -> runReaderT ma r
 
 -- | An alternative to `slot` which mounts the child component to a specific
@@ -84,39 +102,41 @@ portal contextualize label slot childComponent childInput htmlElement handler =
 
 -- | Run a portal component that is already in `Aff`.
 portalAff ::
-  forall query action input output slots label slot _1.
+  forall m query action input output slots label slot _1.
   Row.Cons label (H.Slot query output slot) _1 slots =>
   IsSymbol label =>
   Ord slot =>
+  MonadAff m =>
   SProxy label ->
   slot ->
   H.Component HH.HTML query input output Aff ->
   input ->
   Maybe HTMLElement ->
   (output -> Maybe action) ->
-  H.ComponentHTML action slots Aff
+  H.ComponentHTML action slots m
 portalAff = portal (pure ntIdentity)
 
 -- | Run a portal component that is in `ReaderT r Aff` (for some context `r`).
 portalReaderT ::
-  forall r query action input output slots label slot _1.
+  forall m r query action input output slots label slot _1.
   Row.Cons label (H.Slot query output slot) _1 slots =>
   IsSymbol label =>
   Ord slot =>
+  MonadAff m =>
   SProxy label ->
   slot ->
   H.Component HH.HTML query input output (ReaderT r Aff) ->
   input ->
   Maybe HTMLElement ->
   (output -> Maybe action) ->
-  H.ComponentHTML action slots (ReaderT r Aff)
+  H.ComponentHTML action slots (ReaderT r m)
 portalReaderT = portal ntReaderT
 
 component ::
   forall query input output m n.
   MonadAff m =>
   m (NT n Aff) ->
-  H.Component HH.HTML query (Input n query input output) output m
+  H.Component HH.HTML query (Input query input output n) output m
 component contextualize =
   H.mkComponent
     { initialState
@@ -124,7 +144,7 @@ component contextualize =
     , eval
     }
   where
-  initialState :: Input n query input output -> State n query input output
+  initialState :: Input query input output n -> State query input output n
   initialState { input, child, targetElement } =
     { input
     , child
@@ -133,8 +153,8 @@ component contextualize =
     }
 
   eval ::
-    H.HalogenQ query output (Input n query input output)
-      ~> H.HalogenM (State n query input output) output () output m
+    H.HalogenQ query output (Input query input output n)
+      ~> H.HalogenM (State query input output n) output () output m
   eval = case _ of
     H.Initialize a -> do
       NT context <- H.lift contextualize
@@ -176,10 +196,10 @@ component contextualize =
 
   -- We don't need to render anything; this component is explicitly meant to be
   -- passed through.
-  render :: State n query input output -> H.ComponentHTML output () m
+  render :: State query input output n -> H.ComponentHTML output () m
   render _ = HH.text ""
 
   -- This is needed for a hint to the typechecker. Without it there's an
-  -- idempotence issue with `a` when `HalogenIO` is taken from `State`.
+  -- impredicativity issue with `a` when `HalogenIO` is taken from `State`.
   ioq :: forall a. H.HalogenIO query output Aff -> query a -> Aff (Maybe a)
   ioq = _.query
