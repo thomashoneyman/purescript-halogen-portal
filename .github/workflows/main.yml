@@ -14,17 +14,19 @@ jobs:
     - name: Install Nix
       uses: cachix/install-nix-action@v8
 
-    - name: Drop into the Nix shell
-      run: nix-shell
+    - name: Build and test project
+      run: |
+        # Drop into the shell with dependencies
+        nix-shell
 
-    - name: Install dependencies
-      run: spago install
+        # Install dependencies
+        spago install
 
-    - name: Build the library
-      run: spago build --no-install
+        # Build the library
+        spago build --no-install
 
-    - name: Build the examples
-      run: spago build --no-install -p './example/**/*.purs'
+        # Build examples
+        spago build --no-install -p './example/**/*.purs'
 
-    - name: Run tests
-      run: spago test --no-install
+        # Run tests
+        spago test --no-install
