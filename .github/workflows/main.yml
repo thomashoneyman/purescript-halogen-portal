@@ -1,0 +1,23 @@
+name: CI
+
+on: [ push, pull_request ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      
+    - name: Install Nix
+      uses: cachix/install-nix-action@v8
+
+    - name: Drop into the Nix shell
+      run: nix-shell
+
+    - name: Install dependencies and build project
+      run: |
+        yarn
+        yarn build
