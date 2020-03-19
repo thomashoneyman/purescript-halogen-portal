@@ -5,7 +5,6 @@
 module Halogen.Portal where
 
 import Prelude
-
 import Control.Coroutine (consumer)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Rec.Class (forever)
@@ -51,13 +50,18 @@ type State query input output n
 -- ```
 --
 -- Another option is to use `H.hoist` to lift your component into `ReaderT`.
-newtype NT m n = NT (forall a. m a -> n a)
+newtype NT m n
+  = NT (forall a. m a -> n a)
+
 ntCompose :: forall h m n. NT h m -> NT m n -> NT h n
 ntCompose (NT hm) (NT mn) = NT (hm >>> mn)
+
 ntIdentity :: forall m. NT m m
 ntIdentity = NT identity
+
 ntAff :: forall m. MonadAff m => NT Aff m
 ntAff = NT H.liftAff
+
 ntReaderT :: forall r m n. Monad n => ReaderT r n (NT (ReaderT r m) m)
 ntReaderT = asks \r -> NT \ma -> runReaderT ma r
 

@@ -17,7 +17,14 @@ jobs:
     - name: Drop into the Nix shell
       run: nix-shell
 
-    - name: Install dependencies and build project
-      run: |
-        yarn
-        yarn build
+    - name: Install dependencies
+      run: spago install
+
+    - name: Build the library
+      run: spago build --no-install
+
+    - name: Build the examples
+      run: spago build --no-install -p './example/**/*.purs'
+
+    - name: Run tests
+      run: spago test --no-install

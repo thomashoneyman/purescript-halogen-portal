@@ -1,25 +1,24 @@
 let
-  nixpkgs = builtins.fetchTarball {
-    url = "https://github.com/NixOS/nixpkgs/archive/19.03.tar.gz";
-  };
+  pkgs = import (builtins.fetchTarball {
+    url = "https://github.com/NixOS/nixpkgs/archive/19.09.tar.gz";
+  }) {};
 
-  pkgs = import nixpkgs {};
-
-  easy-ps = import (pkgs.fetchFromGitHub {
+  # nix-prefetch-git https://github.com/justinwoo/easy-purescript-nix
+  # 2020-03-18
+  pursPkgs = import (pkgs.fetchFromGitHub {
     owner = "justinwoo";
     repo = "easy-purescript-nix";
-    # 2019-07-06
-    rev = "9a8d138663c5d751e3a84f1345166e1f0f760a07";
-    sha256 = "1c0mqn4wxh4bmxnf6hgrhk442kl2m9y315wik87wrw2ikb7s1szf";
+    rev = "aa3e608608232f4a009b5c132ae763fdabfb4aba";
+    sha256 = "0y6jikncxs9l2zgngbd1775f1zy5s1hdc5rhkyzsyaalcl5cajk8";
   }) {};
 
 in pkgs.stdenv.mkDerivation {
   name = "halogen-portal";
-  buildInputs = [
-    easy-ps.purs
-    easy-ps.spago
-    easy-ps.purty
+  buildInputs = with pursPkgs; [
+    purs
+    spago
+    purty
     pkgs.yarn
-    pkgs.nodejs-11_x
+    pkgs.nodejs-12_x
   ];
 }

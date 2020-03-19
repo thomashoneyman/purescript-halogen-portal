@@ -33,7 +33,7 @@ component =
           [ HH.text "I'm the parent"
           -- This is almost identical to using the `slot` function, but this component
           -- will _not_ be rendered within the parent component <div> in the DOM.
-          , Portal.portal _child unit Child.component unit Nothing (Just <<< HandleChild)
+          , Portal.portalAff _child unit Child.component unit Nothing (Just <<< HandleChild)
           ]
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
     }
