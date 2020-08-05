@@ -20,6 +20,20 @@ portalAff _modal unit Modal.component modalInput Nothing (Just <<< HandleModal)
 
 The component within the portal can be used exactly as if it were just a regular child component -- you can send queries, subscribe to outputs, and use the component types as before.
 
+### Testing locally
+
+Drop into a development shell and build the example app:
+
+```sh
+# Get a development shell
+nix-shell
+
+# Build the app
+spago bundle-app --path 'example/**/*.purs' --main Example.Main --to dist/app.js
+```
+
+Open index.html in your browser to explore the examples.
+
 ### Limitations
 
 Due to the use of `runUI`, only components which can be easily interpreted into `Aff` can be used. This includes `Aff` and `ReaderT r Aff`, and that's about it. More specifically, you can provide a function `m (n ~> Aff)` that can pull in the monadic context of the parent to interpret the child component into `Aff`, but effects from the child component will not bubble up to the parent component at all.
