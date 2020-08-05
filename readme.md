@@ -29,7 +29,7 @@ Drop into a development shell and build the example app:
 nix-shell
 
 # Build the app
-spago bundle-app --path 'example/**/*.purs' --main Example.Main --to dist/app.js
+spago bundle-app --path 'example/**/*.purs' --to dist/app.js
 ```
 
 Open index.html in your browser to explore the examples.
