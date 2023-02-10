@@ -22,17 +22,13 @@ The component within the portal can be used exactly as if it were just a regular
 
 ### Testing locally
 
-Drop into a development shell and build the example app:
+Build the example app:
 
 ```sh
-# Get a development shell
-nix-shell
-
-# Build the app
-spago bundle-app --path 'example/**/*.purs' --to dist/app.js
+spago bundle-app --path 'example/**/*.purs' --to dist/app.js --config spago.example.dhall
 ```
 
-Open index.html in your browser to explore the examples.
+Open `dist/index.html` in your browser to explore the examples.
 
 ### Limitations
 
