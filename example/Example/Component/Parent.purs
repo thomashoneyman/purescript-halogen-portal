@@ -1,5 +1,6 @@
 module Example.Component.Parent where
 
+import Prelude
 import Data.Const (Const)
 import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..))
@@ -9,7 +10,6 @@ import Example.Component.Child as Child
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Portal as Portal
-import Prelude
 import Type.Proxy (Proxy(..))
 
 data Action

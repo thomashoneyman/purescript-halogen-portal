@@ -4,6 +4,7 @@
 -- | z-indexing or overflow: hidden set.
 module Halogen.Portal where
 
+import Prelude
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Rec.Class (forever)
 import Data.Coyoneda (unCoyoneda)
@@ -19,7 +20,6 @@ import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
 import Halogen.Subscription as HS
 import Halogen.VDom.Driver as VDom
-import Prelude
 import Type.Proxy (Proxy)
 import Type.Row as Row
 import Web.HTML (HTMLElement)
