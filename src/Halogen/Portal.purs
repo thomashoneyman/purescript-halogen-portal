@@ -52,7 +52,7 @@ type State query input output n
 -- ```
 --
 -- Another option is to use `H.hoist` to lift your component into `ReaderT`.
-newtype NT :: forall k. (k -> Type) -> (k -> Type) -> Type
+newtype NT :: (Type -> Type) -> (Type -> Type) -> Type
 newtype NT m n
   = NT (forall a. m a -> n a)
 
