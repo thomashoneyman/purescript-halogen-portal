@@ -18,7 +18,7 @@ jobs:
         run: spago build
 
       - name: Build the examples
-        run: spago build --path 'example/**/*.purs'
+        run: spago build --path 'example/**/*.purs' --config spago.example.dhall
 
       - name: Run tests
         run: spago test
