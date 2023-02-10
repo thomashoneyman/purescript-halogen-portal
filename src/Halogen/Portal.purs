@@ -4,27 +4,29 @@
 -- | z-indexing or overflow: hidden set.
 module Halogen.Portal where
 
-import Prelude
-import Control.Coroutine (consumer)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Rec.Class (forever)
 import Data.Coyoneda (unCoyoneda)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..), maybe, maybe')
-import Data.Symbol (class IsSymbol, SProxy)
-import Effect.Aff (Aff)
+import Data.Symbol (class IsSymbol)
+import Effect.Aff (Aff, launchAff)
 import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff)
+import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
+import Halogen.Subscription as HS
 import Halogen.VDom.Driver as VDom
-import Web.HTML (HTMLElement)
+import Prelude
+import Type.Proxy (Proxy)
 import Type.Row as Row
+import Web.HTML (HTMLElement)
 
 type InputFields query input output n
   = ( input :: input
-    , child :: H.Component HH.HTML query input output n
+    , child :: H.Component query input output n
     , targetElement :: Maybe HTMLElement
     )
 
@@ -50,6 +52,7 @@ type State query input output n
 -- ```
 --
 -- Another option is to use `H.hoist` to lift your component into `ReaderT`.
+newtype NT :: forall k. (k -> Type) -> (k -> Type) -> Type
 newtype NT m n
   = NT (forall a. m a -> n a)
 
@@ -89,12 +92,12 @@ portal ::
   Ord slot =>
   MonadAff m =>
   m (NT n Aff) ->
-  SProxy label ->
+  Proxy label ->
   slot ->
-  H.Component HH.HTML query input output n ->
+  H.Component query input output n ->
   input ->
   Maybe HTMLElement ->
-  (output -> Maybe action) ->
+  (output -> action) ->
   H.ComponentHTML action slots m
 portal contextualize label slot childComponent childInput htmlElement handler =
   handler
@@ -111,12 +114,12 @@ portalAff ::
   IsSymbol label =>
   Ord slot =>
   MonadAff m =>
-  SProxy label ->
+  Proxy label ->
   slot ->
-  H.Component HH.HTML query input output Aff ->
+  H.Component query input output Aff ->
   input ->
   Maybe HTMLElement ->
-  (output -> Maybe action) ->
+  (output -> action) ->
   H.ComponentHTML action slots m
 portalAff = portal (pure ntIdentity)
 
@@ -127,12 +130,12 @@ portalReaderT ::
   IsSymbol label =>
   Ord slot =>
   MonadAff m =>
-  SProxy label ->
+  Proxy label ->
   slot ->
-  H.Component HH.HTML query input output (ReaderT r Aff) ->
+  H.Component query input output (ReaderT r Aff) ->
   input ->
   Maybe HTMLElement ->
-  (output -> Maybe action) ->
+  (output -> action) ->
   H.ComponentHTML action slots (ReaderT r m)
 portalReaderT = portal ntReaderT
 
@@ -140,7 +143,7 @@ component ::
   forall query input output m n.
   MonadAff m =>
   m (NT n Aff) ->
-  H.Component HH.HTML query (Input query input output n) output m
+  H.Component query (Input query input output n) output m
 component contextualize =
   H.mkComponent
     { initialState
@@ -173,10 +176,7 @@ component contextualize =
       io <- H.liftAff $ VDom.runUI (H.hoist context state.child) state.input target
       -- Subscribe to the child component's messages, writing them to the
       -- variable. Multiple writes without a take will queue messages.
-      H.liftAff $ io.subscribe
-        $ consumer \msg -> do
-            AVar.put msg var
-            pure Nothing
+      _ <- liftEffect $ HS.subscribe io.messages \msg -> launchAff $ AVar.put msg var
       _ <-
         H.fork
           $ forever do
@@ -188,7 +188,7 @@ component contextualize =
       state <- H.get
       for_ state.io (H.liftAff <<< _.dispose)
       pure a
-    H.Receive input a -> pure a
+    H.Receive _ a -> pure a
     H.Action output a -> do
       H.raise output
       pure a

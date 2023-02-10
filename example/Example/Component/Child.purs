@@ -1,10 +1,10 @@
 module Example.Component.Child where
 
-import Prelude
 import Data.Maybe (Maybe(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Prelude
 
 data Action
   = HandleClick
@@ -18,7 +18,7 @@ data Output
 type State
   = Int
 
-component :: forall m. H.Component HH.HTML Query Unit Output m
+component :: forall m. H.Component Query Unit Output m
 component =
   H.mkComponent
     { initialState: const 0
@@ -26,7 +26,7 @@ component =
       \_ ->
         HH.div_
           [ HH.button
-              [ HE.onClick \_ -> Just HandleClick ]
+              [ HE.onClick \_ -> HandleClick ]
               [ HH.text "I'm the child." ]
           , HH.text "I'm rendered within the parent in the component tree, but elsewhere in the DOM."
           ]

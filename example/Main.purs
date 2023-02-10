@@ -1,6 +1,5 @@
 module Main where
 
-import Prelude
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -9,6 +8,7 @@ import Example.Component.Parent as Parent
 import Foreign.Object as Object
 import Halogen.Aff as HA
 import Halogen.Storybook (Stories, proxy, runStorybook)
+import Prelude
 
 stories :: forall m. MonadAff m => Stories m
 stories =
