@@ -12,10 +12,10 @@ This component allows you to take any child component and mount it at a target n
 
 ```purs
 -- old:
-HH.slot _modal unit Modal.component modalInput (Just <<< HandleModal)
+HH.slot _modal unit Modal.component modalInput HandleModal
 
 -- new: this mounts to the `<body>` node instead
-portalAff _modal unit Modal.component modalInput Nothing (Just <<< HandleModal)
+portalAff _modal unit Modal.component modalInput Nothing HandleModal
 ```
 
 The component within the portal can be used exactly as if it were just a regular child component -- you can send queries, subscribe to outputs, and use the component types as before.
