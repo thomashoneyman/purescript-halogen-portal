@@ -5,7 +5,8 @@
 module Halogen.Portal where
 
 import Prelude
-import Control.Monad.Reader (ReaderT, asks, runReaderT)
+import Control.Apply (lift2)
+import Control.Monad.Reader (ReaderT, asks, lift, runReaderT)
 import Control.Monad.Rec.Class (forever)
 import Data.Coyoneda (unCoyoneda)
 import Data.Foldable (for_)
@@ -18,6 +19,7 @@ import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
+import Halogen.Store.Monad (StoreT(..))
 import Halogen.Subscription as HS
 import Halogen.VDom.Driver as VDom
 import Type.Proxy (Proxy)
@@ -65,6 +67,53 @@ ntAff = NT H.liftAff
 
 ntReaderT :: forall r m n. Monad n => ReaderT r n (NT (ReaderT r m) m)
 ntReaderT = asks \r -> NT \ma -> runReaderT ma r
+
+class (Monad m) <= PortalM m where
+  toPortalAff :: m (NT m Aff)
+
+instance PortalM Aff where
+  toPortalAff = pure ntIdentity
+
+instance (PortalM m) => PortalM (ReaderT r m) where
+  toPortalAff :: ReaderT r m (NT (ReaderT r m) Aff)
+  toPortalAff = lift2 ntCompose unReader toAff
+    where
+    unReader :: ReaderT r m (NT (ReaderT r m) m)
+    unReader =
+      asks \r -> do
+        NT \ma -> do
+          runReaderT ma r
+
+    toAff = lift toPortalAff
+
+instance (PortalM m) => PortalM (StoreT act r m) where
+  toPortalAff :: _ (NT (StoreT act r m) Aff)
+  toPortalAff = lift2 ntCompose unStore toAff
+    where
+    unStore :: _ (NT (StoreT act r m) m)
+    unStore = StoreT $
+      asks \r -> do
+        NT \(StoreT ma) -> do
+          runReaderT ma r
+
+    toAff = lift toPortalAff
+
+-- | `portal` but using the `PortalM` typeclass to allow for custom monads without a contextualize function.
+portalM
+  :: forall query action input output slots label slot _1 m
+   . Row.Cons label (H.Slot query output slot) _1 slots
+  => IsSymbol label
+  => Ord slot
+  => MonadAff m
+  => PortalM m
+  => Proxy label
+  -> slot
+  -> H.Component query input output m
+  -> input
+  -> Maybe HTMLElement
+  -> (output -> action)
+  -> H.ComponentHTML action slots m
+portalM = portal toPortalAff
 
 -- | An alternative to `slot` which mounts the child component to a specific
 -- | HTMLElement in the DOM instead of within the parent component. Use this
