@@ -7,6 +7,7 @@
   , "foldable-traversable"
   , "free"
   , "halogen"
+  , "halogen-store"
   , "halogen-subscriptions"
   , "maybe"
   , "prelude"

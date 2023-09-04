@@ -5,7 +5,8 @@
 module Halogen.Portal where
 
 import Prelude
-import Control.Monad.Reader (ReaderT, asks, runReaderT)
+import Control.Apply (lift2)
+import Control.Monad.Reader (ReaderT, asks, lift, runReaderT)
 import Control.Monad.Rec.Class (forever)
 import Data.Coyoneda (unCoyoneda)
 import Data.Foldable (for_)
@@ -18,25 +19,25 @@ import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
+import Halogen.Store.Monad (StoreT(..))
 import Halogen.Subscription as HS
 import Halogen.VDom.Driver as VDom
 import Type.Proxy (Proxy)
 import Type.Row as Row
 import Web.HTML (HTMLElement)
 
-type InputFields query input output n
-  = ( input :: input
-    , child :: H.Component query input output n
-    , targetElement :: Maybe HTMLElement
-    )
+type InputFields query input output n =
+  ( input :: input
+  , child :: H.Component query input output n
+  , targetElement :: Maybe HTMLElement
+  )
 
-type Input query input output n
-  = { | InputFields query input output n }
+type Input query input output n = { | InputFields query input output n }
 
-type State query input output n
-  = { io :: Maybe (H.HalogenIO query output Aff)
-    | InputFields query input output n
-    }
+type State query input output n =
+  { io :: Maybe (H.HalogenIO query output Aff)
+  | InputFields query input output n
+  }
 
 -- This wraps natural transformations into a type that is easier to use
 -- with type inference.
@@ -53,8 +54,7 @@ type State query input output n
 --
 -- Another option is to use `H.hoist` to lift your component into `ReaderT`.
 newtype NT :: (Type -> Type) -> (Type -> Type) -> Type
-newtype NT m n
-  = NT (forall a. m a -> n a)
+newtype NT m n = NT (forall a. m a -> n a)
 
 ntCompose :: forall h m n. NT h m -> NT m n -> NT h n
 ntCompose (NT hm) (NT mn) = NT (hm >>> mn)
@@ -67,6 +67,53 @@ ntAff = NT H.liftAff
 
 ntReaderT :: forall r m n. Monad n => ReaderT r n (NT (ReaderT r m) m)
 ntReaderT = asks \r -> NT \ma -> runReaderT ma r
+
+class (Monad m) <= PortalM m where
+  toPortalAff :: m (NT m Aff)
+
+instance PortalM Aff where
+  toPortalAff = pure ntIdentity
+
+instance (PortalM m) => PortalM (ReaderT r m) where
+  toPortalAff :: ReaderT r m (NT (ReaderT r m) Aff)
+  toPortalAff = lift2 ntCompose unReader toAff
+    where
+    unReader :: ReaderT r m (NT (ReaderT r m) m)
+    unReader =
+      asks \r -> do
+        NT \ma -> do
+          runReaderT ma r
+
+    toAff = lift toPortalAff
+
+instance (PortalM m) => PortalM (StoreT act r m) where
+  toPortalAff :: _ (NT (StoreT act r m) Aff)
+  toPortalAff = lift2 ntCompose unStore toAff
+    where
+    unStore :: _ (NT (StoreT act r m) m)
+    unStore = StoreT $
+      asks \r -> do
+        NT \(StoreT ma) -> do
+          runReaderT ma r
+
+    toAff = lift toPortalAff
+
+-- | `portal` but using the `PortalM` typeclass to allow for custom monads without a contextualize function.
+portalM
+  :: forall query action input output slots label slot _1 m
+   . Row.Cons label (H.Slot query output slot) _1 slots
+  => IsSymbol label
+  => Ord slot
+  => MonadAff m
+  => PortalM m
+  => Proxy label
+  -> slot
+  -> H.Component query input output m
+  -> input
+  -> Maybe HTMLElement
+  -> (output -> action)
+  -> H.ComponentHTML action slots m
+portalM = portal toPortalAff
 
 -- | An alternative to `slot` which mounts the child component to a specific
 -- | HTMLElement in the DOM instead of within the parent component. Use this
@@ -85,20 +132,20 @@ ntReaderT = asks \r -> NT \ma -> runReaderT ma r
 -- | HH.div_
 -- |   [ HH.slot _modal unit Modal.component modalInput handler ]
 -- | ```
-portal ::
-  forall query action input output slots label slot _1 m n.
-  Row.Cons label (H.Slot query output slot) _1 slots =>
-  IsSymbol label =>
-  Ord slot =>
-  MonadAff m =>
-  m (NT n Aff) ->
-  Proxy label ->
-  slot ->
-  H.Component query input output n ->
-  input ->
-  Maybe HTMLElement ->
-  (output -> action) ->
-  H.ComponentHTML action slots m
+portal
+  :: forall query action input output slots label slot _1 m n
+   . Row.Cons label (H.Slot query output slot) _1 slots
+  => IsSymbol label
+  => Ord slot
+  => MonadAff m
+  => m (NT n Aff)
+  -> Proxy label
+  -> slot
+  -> H.Component query input output n
+  -> input
+  -> Maybe HTMLElement
+  -> (output -> action)
+  -> H.ComponentHTML action slots m
 portal contextualize label slot childComponent childInput htmlElement handler =
   handler
     # HH.slot label slot (component contextualize)
@@ -108,42 +155,42 @@ portal contextualize label slot childComponent childInput htmlElement handler =
         }
 
 -- | Run a portal component that is already in `Aff`.
-portalAff ::
-  forall m query action input output slots label slot _1.
-  Row.Cons label (H.Slot query output slot) _1 slots =>
-  IsSymbol label =>
-  Ord slot =>
-  MonadAff m =>
-  Proxy label ->
-  slot ->
-  H.Component query input output Aff ->
-  input ->
-  Maybe HTMLElement ->
-  (output -> action) ->
-  H.ComponentHTML action slots m
+portalAff
+  :: forall m query action input output slots label slot _1
+   . Row.Cons label (H.Slot query output slot) _1 slots
+  => IsSymbol label
+  => Ord slot
+  => MonadAff m
+  => Proxy label
+  -> slot
+  -> H.Component query input output Aff
+  -> input
+  -> Maybe HTMLElement
+  -> (output -> action)
+  -> H.ComponentHTML action slots m
 portalAff = portal (pure ntIdentity)
 
 -- | Run a portal component that is in `ReaderT r Aff` (for some context `r`).
-portalReaderT ::
-  forall m r query action input output slots label slot _1.
-  Row.Cons label (H.Slot query output slot) _1 slots =>
-  IsSymbol label =>
-  Ord slot =>
-  MonadAff m =>
-  Proxy label ->
-  slot ->
-  H.Component query input output (ReaderT r Aff) ->
-  input ->
-  Maybe HTMLElement ->
-  (output -> action) ->
-  H.ComponentHTML action slots (ReaderT r m)
+portalReaderT
+  :: forall m r query action input output slots label slot _1
+   . Row.Cons label (H.Slot query output slot) _1 slots
+  => IsSymbol label
+  => Ord slot
+  => MonadAff m
+  => Proxy label
+  -> slot
+  -> H.Component query input output (ReaderT r Aff)
+  -> input
+  -> Maybe HTMLElement
+  -> (output -> action)
+  -> H.ComponentHTML action slots (ReaderT r m)
 portalReaderT = portal ntReaderT
 
-component ::
-  forall query input output m n.
-  MonadAff m =>
-  m (NT n Aff) ->
-  H.Component query (Input query input output n) output m
+component
+  :: forall query input output m n
+   . MonadAff m
+  => m (NT n Aff)
+  -> H.Component query (Input query input output n) output m
 component contextualize =
   H.mkComponent
     { initialState
@@ -159,9 +206,9 @@ component contextualize =
     , io: Nothing
     }
 
-  eval ::
-    H.HalogenQ query output (Input query input output n)
-      ~> H.HalogenM (State query input output n) output () output m
+  eval
+    :: H.HalogenQ query output (Input query input output n)
+         ~> H.HalogenM (State query input output n) output () output m
   eval = case _ of
     H.Initialize a -> do
       NT context <- H.lift contextualize
@@ -195,8 +242,8 @@ component contextualize =
     H.Query query fail ->
       H.gets _.io
         >>= case _ of
-            Nothing -> pure $ fail unit
-            Just io -> H.liftAff $ unCoyoneda (\k q -> maybe' fail k <$> ioq io q) query
+          Nothing -> pure $ fail unit
+          Just io -> H.liftAff $ unCoyoneda (\k q -> maybe' fail k <$> ioq io q) query
 
   -- We don't need to render anything; this component is explicitly meant to be
   -- passed through.
