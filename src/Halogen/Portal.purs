@@ -7,20 +7,16 @@ module Halogen.Portal where
 import Prelude
 import Control.Apply (lift2)
 import Control.Monad.Reader (ReaderT, asks, lift, runReaderT)
-import Control.Monad.Rec.Class (forever)
 import Data.Coyoneda (unCoyoneda)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..), maybe, maybe')
 import Data.Symbol (class IsSymbol)
-import Effect.Aff (Aff, launchAff)
-import Effect.Aff.AVar as AVar
+import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
-import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
 import Halogen.Store.Monad (StoreT(..))
-import Halogen.Subscription as HS
 import Halogen.VDom.Driver as VDom
 import Type.Proxy (Proxy)
 import Type.Row as Row
@@ -213,22 +209,13 @@ component contextualize =
     H.Initialize a -> do
       NT context <- H.lift contextualize
       state <- H.get
-      -- Create a blocking mutable variable which will be updated with messages
-      -- as they come in.
-      var <- H.liftAff AVar.empty
       -- The target element can either be the one supplied by the user, or the
       -- document body. Either way, we'll run the sub-tree at the target and
       -- save the resulting interface.
       target <- maybe (H.liftAff awaitBody) pure state.targetElement
       io <- H.liftAff $ VDom.runUI (H.hoist context state.child) state.input target
-      -- Subscribe to the child component's messages, writing them to the
-      -- variable. Multiple writes without a take will queue messages.
-      _ <- liftEffect $ HS.subscribe io.messages \msg -> launchAff $ AVar.put msg var
-      _ <-
-        H.fork
-          $ forever do
-              msg <- H.liftAff (AVar.take var)
-              eval (H.Action msg unit)
+      -- Subscribe to the child component's messages
+      _ <- H.subscribe io.messages
       H.modify_ _ { io = Just io }
       pure a
     H.Finalize a -> do
