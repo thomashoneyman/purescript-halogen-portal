@@ -5,9 +5,10 @@
 module Halogen.Portal where
 
 import Prelude
+
 import Control.Apply (lift2)
 import Control.Monad.Reader (ReaderT, asks, lift, runReaderT)
-import Data.Coyoneda (unCoyoneda)
+import Data.Coyoneda (hoistCoyoneda, unCoyoneda)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..), maybe, maybe')
 import Data.Symbol (class IsSymbol)
@@ -18,6 +19,7 @@ import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
 import Halogen.Store.Monad (StoreT(..))
 import Halogen.VDom.Driver as VDom
+import Type.Prelude (Proxy(..))
 import Type.Proxy (Proxy)
 import Type.Row as Row
 import Web.HTML (HTMLElement)
@@ -31,7 +33,7 @@ type InputFields query input output n =
 type Input query input output n = { | InputFields query input output n }
 
 type State query input output n =
-  { io :: Maybe (H.HalogenIO query output Aff)
+  { io :: Maybe (H.HalogenIO (Query input query) output Aff)
   | InputFields query input output n
   }
 
@@ -134,6 +136,7 @@ portal
   => IsSymbol label
   => Ord slot
   => MonadAff m
+  => MonadAff n
   => m (NT n Aff)
   -> Proxy label
   -> slot
@@ -182,9 +185,44 @@ portalReaderT
   -> H.ComponentHTML action slots (ReaderT r m)
 portalReaderT = portal ntReaderT
 
+data Query input query a = SetInput input a | ChildQuery (query a)
+
+_content :: Proxy "content"
+_content = Proxy @"content"
+
+-- wraps the portalled component and provides a SetInput query
+-- that can be used by the Portal component to update the child's
+-- input when it receives new values from the parent
+wrapper
+  :: forall query input output m
+   . MonadAff m
+  => H.Component (Query input query) (State query input output m) output m
+wrapper = H.mkComponent
+  { initialState: identity
+  , render
+  , eval: H.mkEval $ H.defaultEval
+      { handleQuery = handleQuery
+      , handleAction = H.raise
+      }
+  }
+
+  where
+
+  render { input, child } = HH.slot _content unit child input identity
+
+  handleQuery :: forall action a. Query input query a -> H.HalogenM _ action _ output m (Maybe a)
+  handleQuery = case _ of
+    SetInput input a -> do
+      H.modify_ _ { input = input }
+      pure $ Just a
+    ChildQuery query -> do
+      res <- H.query _content unit query
+      pure res
+
 component
   :: forall query input output m n
    . MonadAff m
+  => MonadAff n
   => m (NT n Aff)
   -> H.Component query (Input query input output n) output m
 component contextualize =
@@ -213,7 +251,7 @@ component contextualize =
       -- document body. Either way, we'll run the sub-tree at the target and
       -- save the resulting interface.
       target <- maybe (H.liftAff awaitBody) pure state.targetElement
-      io <- H.liftAff $ VDom.runUI (H.hoist context state.child) state.input target
+      io <- H.liftAff $ VDom.runUI (H.hoist context wrapper) state target
       -- Subscribe to the child component's messages
       _ <- H.subscribe io.messages
       H.modify_ _ { io = Just io }
@@ -222,7 +260,12 @@ component contextualize =
       state <- H.get
       for_ state.io (H.liftAff <<< _.dispose)
       pure a
-    H.Receive _ a -> pure a
+    H.Receive { input } a -> H.gets _.io
+      >>= case _ of
+        Nothing -> pure a
+        Just io -> do
+          void $ H.liftAff $ (ioq io) (SetInput input a)
+          pure a
     H.Action output a -> do
       H.raise output
       pure a
@@ -230,7 +273,7 @@ component contextualize =
       H.gets _.io
         >>= case _ of
           Nothing -> pure $ fail unit
-          Just io -> H.liftAff $ unCoyoneda (\k q -> maybe' fail k <$> ioq io q) query
+          Just io -> H.liftAff $ unCoyoneda (\k q -> maybe' fail k <$> ioq io q) (hoistCoyoneda ChildQuery query)
 
   -- We don't need to render anything; this component is explicitly meant to be
   -- passed through.
@@ -239,5 +282,5 @@ component contextualize =
 
   -- This is needed for a hint to the typechecker. Without it there's an
   -- impredicativity issue with `a` when `HalogenIO` is taken from `State`.
-  ioq :: forall a. H.HalogenIO query output Aff -> query a -> Aff (Maybe a)
+  ioq :: forall a. H.HalogenIO (Query input query) output Aff -> (Query input query) a -> Aff (Maybe a)
   ioq = _.query
