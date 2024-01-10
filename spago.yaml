@@ -1,0 +1,19 @@
+package:
+  dependencies:
+  - aff
+  - console
+  - effect
+  - foldable-traversable
+  - free
+  - halogen
+  - halogen-store
+  - maybe
+  - prelude
+  - transformers
+  - typelevel-prelude
+  - web-html
+  name: halogen-portal
+workspace:
+  extra_packages: {}
+  package_set:
+    url: https://raw.githubusercontent.com/purescript/package-sets/psc-0.15.7-20230207/packages.json
