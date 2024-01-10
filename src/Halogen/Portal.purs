@@ -17,6 +17,7 @@ import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.Aff (awaitBody)
 import Halogen.HTML as HH
+import Halogen.HTML.Properties as HP
 import Halogen.Store.Monad (StoreT(..))
 import Halogen.VDom.Driver as VDom
 import Type.Prelude (Proxy(..))
@@ -208,7 +209,9 @@ wrapper = H.mkComponent
 
   where
 
-  render { input, child } = HH.slot _content unit child input identity
+  render { input, child } = HH.div
+    [ HP.style "display: contents" ]
+    [ HH.slot _content unit child input identity ]
 
   handleQuery :: forall action a. Query input query a -> H.HalogenM _ action _ output m (Maybe a)
   handleQuery = case _ of
