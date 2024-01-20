@@ -1,14 +1,18 @@
 package:
   dependencies:
   - aff
+  - avar
   - console
   - effect
   - foldable-traversable
   - free
   - halogen
   - halogen-store
+  - halogen-storybook
+  - halogen-subscriptions
   - maybe
   - prelude
+  - tailrec
   - transformers
   - typelevel-prelude
   - web-html
