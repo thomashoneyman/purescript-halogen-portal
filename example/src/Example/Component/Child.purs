@@ -6,36 +6,32 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 
-data Action
-  = HandleClick
+data Action = HandleClick
 
-data Query a
-  = GetCount (Int -> a)
+data Query a = GetCount (Int -> a)
 
-data Output
-  = Clicked
+data Output = Clicked
 
-type State
-  = Int
+type State = Int
 
 component :: forall m. H.Component Query Unit Output m
 component =
   H.mkComponent
     { initialState: const 0
     , render:
-      \_ ->
-        HH.div_
-          [ HH.button
-              [ HE.onClick \_ -> HandleClick ]
-              [ HH.text "I'm the child." ]
-          , HH.text "I'm rendered within the parent in the component tree, but elsewhere in the DOM."
-          ]
+        \_ ->
+          HH.div_
+            [ HH.button
+                [ HE.onClick \_ -> HandleClick ]
+                [ HH.text "I'm the child." ]
+            , HH.text "I'm rendered within the parent in the component tree, but elsewhere in the DOM."
+            ]
     , eval:
-      H.mkEval
-        $ H.defaultEval
-            { handleAction = handleAction
-            , handleQuery = handleQuery
-            }
+        H.mkEval
+          $ H.defaultEval
+              { handleAction = handleAction
+              , handleQuery = handleQuery
+              }
     }
   where
   handleAction = case _ of

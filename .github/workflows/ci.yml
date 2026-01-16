@@ -11,14 +11,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: thomashoneyman/setup-purescript@main
+
+      - name: Cache PureScript dependencies
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-spago-${{ hashFiles('**/spago.lock') }}
+          path: |
+            .spago
+            output
 
       - name: Build the project
         run: spago build
 
       - name: Build the examples
-        run: spago build --path 'example/**/*.purs' --config spago.example.dhall
+        working-directory: example
+        run: spago build
 
       - name: Run tests
         run: spago test
