@@ -12,12 +12,11 @@ import Halogen.HTML as HH
 import Halogen.Portal as Portal
 import Type.Proxy (Proxy(..))
 
-data Action
-  = HandleChild Child.Output
+data Action = HandleChild Child.Output
 
-type ChildSlots
-  = ( child :: H.Slot Child.Query Child.Output Unit
-    )
+type ChildSlots =
+  ( child :: H.Slot Child.Query Child.Output Unit
+  )
 
 _child :: Proxy "child"
 _child = Proxy
@@ -27,14 +26,14 @@ component =
   H.mkComponent
     { initialState: identity
     , render:
-      \_ ->
-        HH.div
-          []
-          [ HH.text "I'm the parent"
-          -- This is almost identical to using the `slot` function, but this component
-          -- will _not_ be rendered within the parent component <div> in the DOM.
-          , Portal.portalAff _child unit Child.component unit Nothing (HandleChild)
-          ]
+        \_ ->
+          HH.div
+            []
+            [ HH.text "I'm the parent"
+            -- This is almost identical to using the `slot` function, but this component
+            -- will _not_ be rendered within the parent component <div> in the DOM.
+            , Portal.portalAff _child unit Child.component unit Nothing (HandleChild)
+            ]
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
     }
   where

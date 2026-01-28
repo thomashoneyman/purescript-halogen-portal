@@ -25,7 +25,7 @@ The component within the portal can be used exactly as if it were just a regular
 Build the example app:
 
 ```sh
-spago bundle-app --path 'example/**/*.purs' --to dist/app.js --config spago.example.dhall
+spago bundle-app --path 'example/**/*.purs' --to dist/app.js --config example/spago.yaml
 ```
 
 Open `dist/index.html` in your browser to explore the examples.
