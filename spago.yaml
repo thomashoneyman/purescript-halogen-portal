@@ -19,7 +19,7 @@ package:
       - halogen-subscriptions: ">=2.0.0 <3.0.0"
       - tailrec: ">=6.1.0 <7.0.0"
   publish:
-    version: 2.0.1
+    version: 1.0.0
     license: MIT
     location:
       githubOwner: thomashoneyman
